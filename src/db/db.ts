@@ -31,9 +31,14 @@ export function createPatientStudy(
   stmt.run(patientId, studyId, frequencySeconds, JSON.stringify(dataSources || []));
 }
 
-export function getPatientStudies(patientId: string): PatientStudy[] {
+export function getAllPatientStudies(patientId: string): PatientStudy[] {
   const stmt = db.prepare('SELECT * FROM patient_studies WHERE patient_id = ?');
   return stmt.all(patientId) as PatientStudy[];
+}
+
+export function getPatientStudies(patientId: string, studyIds: string[]): PatientStudy[] {
+  const stmt = db.prepare('SELECT * FROM patient_studies WHERE patient_id = ? AND study_id IN studyIds');
+  return stmt.all(patientId, studyIds) as PatientStudy[];
 }
 
 export function getPatientStudy(patientId: string, studyId: string): PatientStudy | undefined {

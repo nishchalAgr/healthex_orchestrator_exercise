@@ -1,0 +1,28 @@
+{
+  "name": "healthex_imp",
+  "version": "1.0.0",
+  "description": "",
+  "license": "ISC",
+  "author": "",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "bullmq": "^6.2.0",
+    "express": "^5.2.1",
+    "redis": "^6.2.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.2.0",
+    "typescript": "^7.0.2"
+  },
+  "allowScripts": {
+    "msgpackr-extract@3.0.4": true,
+    "better-sqlite3@13.0.3": true
+  }
+}

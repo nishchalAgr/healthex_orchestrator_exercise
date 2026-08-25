@@ -1,9 +1,10 @@
 import { Worker } from 'bullmq';
 import { connection, addRefreshJob, queueName } from './queue.ts';
-import { getPatientStudy, updateStatus } from './db/db.ts';
+import { getPatientStudy, updateStatus, getPatientSource, completePatientSourceRefresh, tryStartPatientSourceRefresh } from './db/db.ts';
 import type { PatientStudy } from './db/types.ts';
 import { sleep } from './utils.ts';
 import http from 'node:http';
+import { start } from 'node:repl';
 
 // Base latency (ms) for each EHR API call
 const EHR_BASE_LATENCY: Record<string, number> = {
@@ -130,12 +131,62 @@ export function createWorker(workerId: number) {
         return;
       }
 
-      console.log(`[Worker ${workerId}] EHRs to call: ${ehrs.join(', ')}`);
-
       // --- Step 2: Fetch info from EACH EHR concurrently ---
       // Call each EHR with retry, concurrently
-      const ehrCalls = ehrs.map((ehr) => callEhrMockWithRetry(ehr, patientId, 5));
-      const results = await Promise.allSettled(ehrCalls);
+      const oneMinuteAgo = new Date(Date.now() - 60000);
+      const results: PromiseSettledResult<{ ehr: string; time: number }>[] = [];
+
+      for (const ehr of ehrs) {
+        console.log(`[Worker ${workerId}] EHR to call: ${ehr}`);
+        // Check freshness
+        const patientSource = getPatientSource(patientId, ehr);
+
+        const status = patientSource.status;
+        if (status == 'IN_PROGRESS') {
+          console.log(`   ⏭️ Skipping ${ehr} – refresh in progress`);
+          // Treat as success (no fetch needed)
+          results.push({
+            status: 'fulfilled',
+            value: { ehr, time: 0 },
+          });
+          continue;
+        }
+
+        //skip if data source was refreshed for patient in the last 60 seconds
+        //this check is not performed if priority == 0, which means that manual refresh was requested
+        const last_refresh_at = patientSource.last_refresh_at;
+        if (job.priority > 0 && last_refresh_at) {
+          const lastRefreshTime = new Date(last_refresh_at);
+          if (lastRefreshTime >= oneMinuteAgo) {
+            console.log(`   ⏭️ Skipping ${ehr} – refreshed at ${last_refresh_at} (< 1 min ago)`);
+            // Treat as success (no fetch needed)
+            results.push({
+              status: 'fulfilled',
+              value: { ehr, time: 0 },
+            });
+            continue;
+          }
+        }
+
+        // Not fresh – perform retryable call
+        const success = tryStartPatientSourceRefresh(patientId, ehr);
+         if (!success) {
+          console.log(`   ⏭️ Skipping ${ehr} – refresh in progress by another worker`);
+          results.push({ status: 'fulfilled', value: { ehr, time: 0 } });
+          continue;
+        }
+
+        try {
+          const result = await callEhrMockWithRetry(ehr, patientId, 5);
+          // Success – update the source refresh timestamp
+          const now = new Date().toISOString();
+          completePatientSourceRefresh(patientId, ehr, 'COMPLETED', now);
+          results.push({ status: 'fulfilled', value: result });
+        } catch (err: any) {
+          completePatientSourceRefresh(patientId, ehr, 'FAILED');
+          results.push({ status: 'rejected', reason: err });
+        }
+      }
 
       const succeeded = results.filter(r => r.status === 'fulfilled').length;
       const failed = results.filter(r => r.status === 'rejected').length;

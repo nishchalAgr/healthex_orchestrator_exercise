@@ -1,11 +1,17 @@
 import { createPatientStudy } from './db.ts';
 
 function getSeedCount(): number {
-  const arg = parseInt(process.argv[2], 10);
-  console.log(`Seed count: ${arg}`);
-  if (!isNaN(arg) && arg > 0) return arg;
+  const arg = process.argv[2];
+  if(arg && arg == 't') {
+    let count = parseInt(process.argv[3], 0);
+    if(isNaN(count)) count = 0
+    return -1 * count;
+  }
 
-  return 10;
+  let count = parseInt(arg, 10);
+  if(isNaN(count)) count = 10
+
+  return count;
 }
 
 function randomInt(min: number, max: number): number {
@@ -21,6 +27,8 @@ function randomEhrs(): string[] {
 }
 
 async function seedDatabase(count: number) {
+  if(count < 0) count = 10;
+
   console.log(`🌱 Seeding ${count} random patient–study records...`);
 
   const usedPairs = new Set<string>();
@@ -55,9 +63,26 @@ async function seedDatabase(count: number) {
   console.log(`   Frequencies: 20–120s. Data sources: random subsets of epic/cerner/athena.`);
 }
 
+async function addMultipleStudiesWithSamePatientAndDataSource() {
+  let patientId = "patient_1";
+  createPatientStudy(patientId, "study_1", 6, ['epic', 'cerner']);
+  createPatientStudy(patientId, "study_2", 7, ['athena', 'cerner']);
+  console.log(`✅ Seeded 2 patient–study pairs for MultipleStudiesWithSamePatientAndDataSource test case.`);
+}
 
-const count = getSeedCount();
-seedDatabase(count)
+let count = getSeedCount();
+
+let seedingFunction: Promise<void>;
+
+switch(count) {
+  case -1:
+    seedingFunction = addMultipleStudiesWithSamePatientAndDataSource();
+    break;
+  default:
+    seedingFunction = seedDatabase(count);
+}
+
+seedingFunction
   .then(() => process.exit(0))
   .catch((err) => {
     console.error('Seeding failed:', err);

@@ -7,3 +7,10 @@ export interface PatientStudy {
   data_sources: string | null; // JSON array of strings, e.g., '["epic","cerner"]'
   created_at: string;
 }
+
+export interface PatientDataSource {
+  patient_id: string;
+  data_source: string;
+  last_refresh_at: string | null;
+  status: 'PENDING' | 'IN_PROGRESS' | 'DONE' | 'FAILED';
+}

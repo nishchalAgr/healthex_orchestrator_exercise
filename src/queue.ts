@@ -1,12 +1,15 @@
-import { Queue, createNodeRedisClient } from 'bullmq';
-import { createClient } from 'redis';
-
-const rawClient = createClient({
-  url: 'redis://localhost:6379',
-});
+import { Queue } from 'bullmq';
+import { Redis } from 'ioredis';
 
 export const queueName = 'refresh-queue';
-export const connection = createNodeRedisClient(rawClient);
+
+// Create Redis connection using IORedis
+export const connection = new Redis({
+  host: 'localhost',
+  port: 6379,
+  maxRetriesPerRequest: null,
+});
+
 export const refreshQueue = new Queue(queueName, { connection });
 
 export async function addRefreshJob(
@@ -15,6 +18,8 @@ export async function addRefreshJob(
   priority: number = 1,
   baseDelayMs?: number
 ) {
+  console.log(`Adding new refresh job: ${patientId} , ${studyId}`);
+
   let delay = baseDelayMs || 0;
 
   // Apply 0–15% jitter
@@ -23,7 +28,7 @@ export async function addRefreshJob(
     delay = Math.floor(delay + jitter);
   }
 
-  return refreshQueue.add(
+  return await refreshQueue.add(
     'refresh',
     { patientId, studyId },
     { priority, delay }

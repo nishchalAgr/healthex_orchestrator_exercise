@@ -8,13 +8,14 @@
   "main": "index.js",
   "scripts": {
     "seed": "node src/db/seed.ts",
-    "cleanup": "node src/db/cleanup.ts"
+    "cleanup": "node src/db/cleanup.ts ; redis-cli flushall",
+    "dev": "node src/index.ts"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
     "bullmq": "^6.2.0",
     "express": "^5.2.1",
-    "redis": "^6.2.1"
+    "ioredis": "^6.0.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^9.6.0",

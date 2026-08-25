@@ -32,8 +32,8 @@ async function seedDatabase(count: number) {
     let attempts = 0;
 
     do {
-      const patientNum = randomInt(1, Math.min(50, count));
-      const studyNum = randomInt(1, Math.min(10, count));
+      const patientNum = randomInt(1, count * 100);
+      const studyNum = randomInt(1, count * 100);
       patientId = `patient_${patientNum}`;
       studyId = `study_${studyNum}`;
       key = `${patientId}|${studyId}`;

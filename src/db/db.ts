@@ -47,7 +47,7 @@ export function getPatientStudy(patientId: string, studyId: string): PatientStud
 }
 
 export function getAllPendingStudies(): PatientStudy[] {
-  const stmt = db.prepare('SELECT * FROM patient_studies WHERE status = "PENDING"');
+  const stmt = db.prepare('SELECT * FROM patient_studies WHERE status = \'PENDING\'');
   return stmt.all() as PatientStudy[];
 }
 

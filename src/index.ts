@@ -2,7 +2,9 @@ import express from 'express';
 import { addRefreshJob } from './queue.ts';
 import { createWorker } from './worker.ts';
 import { getAllPendingStudies, getPatientStudies, getAllPatientStudies } from './db/db.ts';
-import { PatientStudy } from './db/types.ts';
+import type { PatientStudy } from './db/types.ts';
+import { sleep } from './utils.ts';
+
 
 const app = express();
 app.use(express.json());
@@ -25,6 +27,45 @@ console.log(`✅ Initialized ${N} workers.`);
 
   console.log(`✅ ${pending.length} initial jobs queued.`);
 })();
+
+const EHR_BASE_LATENCY: Record<string, number> = {
+  epic: 800,
+  cerner: 1200,
+  athena: 500,
+};
+
+app.get('/mock/:ehr/:patientId', async (req, res) => {
+  const { ehr, patientId } = req.params;
+  const base = EHR_BASE_LATENCY[ehr] || 1000;
+  const variance = Math.random() * 1000;
+  const totalTime = base + variance;
+
+  console.log(`[Mock ${ehr}] Simulating API call for patient ${patientId} (${totalTime.toFixed(0)}ms)`);
+  
+  // Simulate network latency
+  await sleep(totalTime);
+
+  // Simulate a successful response (with a small chance of failure for realism)
+  if (Math.random() < 0.05) { // 5% chance of simulated failure
+    console.log(`[Mock ${ehr}] ❌ Simulated failure for patient ${patientId}`);
+    return res.status(500).json({ error: 'Simulated EHR internal error' });
+  }
+
+  res.status(200).json({
+    status: 'success',
+    ehr,
+    patientId,
+    simulatedTime: totalTime,
+    message: 'Data retrieved successfully',
+    data: {
+      patient: patientId,
+      records: [
+        { type: 'Observation', count: Math.floor(Math.random() * 100) },
+        { type: 'Condition', count: Math.floor(Math.random() * 20) },
+      ],
+    },
+  });
+});
 
 app.post('/patients/:id/$updateData', async (req, res) => {
   const { id } = req.params;

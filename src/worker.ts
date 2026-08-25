@@ -1,7 +1,9 @@
 import { Worker } from 'bullmq';
 import { connection, addRefreshJob, queueName } from './queue.ts';
 import { getPatientStudy, updateStatus } from './db/db.ts';
+import type { PatientStudy } from './db/types.ts';
 import { sleep } from './utils.ts';
+import http from 'node:http';
 
 // Base latency (ms) for each EHR API call
 const EHR_BASE_LATENCY: Record<string, number> = {
@@ -9,6 +11,81 @@ const EHR_BASE_LATENCY: Record<string, number> = {
   cerner: 1200,
   athena: 500,
 };
+
+async function callEhrMockWithRetry(
+  ehr: string,
+  patientId: string,
+  maxRetries: number = 5
+): Promise<{ ehr: string; time: number }> {
+  let attempt = 0;
+  let lastError: Error | null = null;
+
+  while (attempt < maxRetries) {
+    try {
+      const result = await callEhrMockOnce(ehr, patientId);
+      return result; // success
+    } catch (err: any) {
+      lastError = err;
+      attempt++;
+      if (attempt >= maxRetries) break;
+
+      // Exponential backoff: 100ms * 2^(attempt-1) + jitter (0–100ms)
+      const baseDelay = 100 * Math.pow(2, attempt - 1);
+      const jitter = Math.random() * 100;
+      const delay = baseDelay + jitter;
+      console.log(`   🔄 Retry ${attempt}/${maxRetries} for ${ehr} in ${delay.toFixed(0)}ms`);
+      await sleep(delay);
+    }
+  }
+
+  // All retries exhausted
+  throw new Error(`EHR ${ehr} failed after ${maxRetries} attempts: ${lastError?.message || 'Unknown error'}`);
+}
+
+function callEhrMockOnce(ehr: string, patientId: string): Promise<{ ehr: string; time: number }> {
+  return new Promise((resolve, reject) => {
+    const startTime = Date.now();
+
+    const options = {
+      hostname: 'localhost',
+      port: 3000,
+      path: `/mock/${ehr}/${patientId}`,
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      timeout: 5000,
+    };
+
+    const req = http.request(options, (res) => {
+      let data = '';
+      res.setEncoding('utf8');
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        const elapsed = Date.now() - startTime;
+        if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+          console.log(`   ✅ ${ehr} call completed in ${elapsed}ms (status: ${res.statusCode})`);
+          resolve({ ehr, time: elapsed });
+        } else {
+          const errorMsg = `HTTP ${res.statusCode}: ${data}`;
+          console.error(`   ❌ ${ehr} failed: ${errorMsg}`);
+          reject(new Error(errorMsg));
+        }
+      });
+    });
+
+    req.on('error', (err) => {
+      console.error(`   ❌ ${ehr} network error: ${err.message}`);
+      reject(err);
+    });
+
+    req.on('timeout', () => {
+      req.destroy();
+      console.error(`   ❌ ${ehr} timeout`);
+      reject(new Error('Request timeout'));
+    });
+
+    req.end();
+  });
+}
 
 export function createWorker(workerId: number) {
   return new Worker(
@@ -51,44 +128,40 @@ export function createWorker(workerId: number) {
       console.log(`[Worker ${workerId}] EHRs to call: ${ehrs.join(', ')}`);
 
       // --- Step 2: Fetch info from EACH EHR concurrently ---
-      const ehrCalls = ehrs.map(async (ehr) => {
-        const base = EHR_BASE_LATENCY[ehr] || 1000; // fallback to 1s
-        const variance = Math.random() * 1000; // 0–1000ms random variance
-        const totalTime = base + variance;
-
-        // Simulate the network call
-        await sleep(totalTime);
-
-        // Simulated successful response
-        console.log(
-          `[Worker ${workerId}]   ✅ ${ehr} call completed in ${totalTime.toFixed(0)}ms ` +
-          `(base ${base}ms + variance ${variance.toFixed(0)}ms)`
-        );
-
-        return { ehr, time: totalTime };
-      });
-
-      // Run all EHR calls concurrently – use allSettled so one failure doesn't block others
+      // Call each EHR with retry, concurrently
+      const ehrCalls = ehrs.map((ehr) => callEhrMockWithRetry(ehr, patientId, 5));
       const results = await Promise.allSettled(ehrCalls);
 
-      // Check if any failed (though our simulation always resolves, this is future-proof)
-      const failed = results.filter(r => r.status === 'rejected');
-      if (failed.length > 0) {
-        console.error(`[Worker ${workerId}] ⚠️ ${failed.length} EHR call(s) failed.`);
-        // In a real system, you might mark as FAILED or retry. For now, we log but still proceed.
+      const succeeded = results.filter(r => r.status === 'fulfilled').length;
+      const failed = results.filter(r => r.status === 'rejected').length;
+
+      // Determine final status
+      const now = new Date().toISOString();
+      let finalStatus: PatientStudy['status'];
+      if (failed === 0) {
+        finalStatus = 'DONE';
+      } else {
+        finalStatus = 'FAILED';
+        // Log each failure
+        results.forEach((r, idx) => {
+          if (r.status === 'rejected') {
+            console.warn(`[Worker ${workerId}]   Final failure for ${ehrs[idx]}: ${r.reason.message}`);
+          }
+        });
       }
 
-      // --- Step 3: Mark status as REFRESH_DONE and update timestamp ---
-      const now = new Date().toISOString();
-      await updateStatus(patientId, studyId, 'DONE', now);
-      console.log(`[Worker ${workerId}] Status -> DONE at ${now} (${results.length} EHRs processed)`);
+      await updateStatus(patientId, studyId, finalStatus, now);
+      console.log(
+        `[Worker ${workerId}] Status -> ${finalStatus} at ${now} ` +
+        `(${succeeded} succeeded, ${failed} failed)`
+      );
 
-      // --- Schedule the next run for this patient-study ---
+      // Schedule next run regardless
       await scheduleNextRun(patientId, studyId, study.frequency_seconds, workerId);
     },
     {
       connection,
-      concurrency: 1, // Each worker handles one job at a time
+      concurrency: 1,
     }
   );
 }

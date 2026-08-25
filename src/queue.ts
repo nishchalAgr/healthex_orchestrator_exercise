@@ -18,8 +18,6 @@ export async function addRefreshJob(
   priority: number = 1,
   baseDelayMs?: number
 ) {
-  console.log(`Adding new refresh job: ${patientId} , ${studyId}`);
-
   let delay = baseDelayMs || 0;
 
   // Apply 0–15% jitter
@@ -27,6 +25,8 @@ export async function addRefreshJob(
     const jitter = delay * Math.random() * 0.15;
     delay = Math.floor(delay + jitter);
   }
+
+  console.log(`Adding new refresh job: ${patientId} , ${studyId}, scheduled to execute in ${delay}ms` );
 
   return await refreshQueue.add(
     'refresh',

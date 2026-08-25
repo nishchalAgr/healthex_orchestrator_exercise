@@ -20,9 +20,10 @@ console.log(`✅ Initialized ${N} workers.`);
   const pending = getAllPendingStudies();
   console.log(`📋 Found ${pending.length} pending records. Scheduling initial jobs...`);
 
+  let delay = 0;
   for (const record of pending) {
-    const baseDelay = Math.floor(Math.random() * 2000);
-    await addRefreshJob(record.patient_id, record.study_id, 1, baseDelay);
+    delay += 100;
+    await addRefreshJob(record.patient_id, record.study_id, 1, delay);
   }
 
   console.log(`✅ ${pending.length} initial jobs queued.`);

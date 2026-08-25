@@ -94,24 +94,29 @@ export function createWorker(workerId: number) {
       const { patientId, studyId } = job.data;
       console.log(`[Worker ${workerId}] Starting job: patient=${patientId}, study=${studyId}`);
 
-      // --- Step 1: Mark status as REFRESH_STARTED ---
-      await updateStatus(patientId, studyId, 'IN_PROGRESS');
-      console.log(`[Worker ${workerId}] Status -> IN_PROGRESS`);
-
-      // --- Fetch the study to get data_sources ---
-      const study = await getPatientStudy(patientId, studyId);
-      if (!study) {
+      // Check for status, drop job if in progress or invalid ids
+      let patientStudy = await getPatientStudy(patientId, studyId);
+      if (!patientStudy) {
         console.error(`[Worker ${workerId}] Study ${studyId} not found for patient ${patientId}`);
         await updateStatus(patientId, studyId, 'FAILED');
         return;
       }
 
+      if(patientStudy?.status == 'IN_PROGRESS') {
+        console.log(`[Worker ${workerId}] Job is unnecessary as refresh for ${patientId} , ${studyId} is already IN_PROGRESS`);
+        return;
+      }
+
+      // --- Step 1: Mark status as REFRESH_STARTED ---
+      await updateStatus(patientId, studyId, 'IN_PROGRESS');
+      console.log(`[Worker ${workerId}] Status -> IN_PROGRESS`);
+
       // Parse the JSON array of EHRs
       let ehrs: string[] = [];
       try {
-        ehrs = study.data_sources ? JSON.parse(study.data_sources) : [];
+        ehrs = patientStudy.data_sources ? JSON.parse(patientStudy.data_sources) : [];
       } catch (e) {
-        console.error(`[Worker ${workerId}] Failed to parse data_sources: ${study.data_sources}`);
+        console.error(`[Worker ${workerId}] Failed to parse data_sources: ${patientStudy.data_sources}`);
         await updateStatus(patientId, studyId, 'FAILED');
         return;
       }
@@ -121,7 +126,7 @@ export function createWorker(workerId: number) {
         const now = new Date().toISOString();
         await updateStatus(patientId, studyId, 'DONE', now);
         // Still schedule next run
-        await scheduleNextRun(patientId, studyId, study.frequency_seconds, workerId);
+        await scheduleNextRun(patientId, studyId, patientStudy.frequency_seconds, workerId);
         return;
       }
 
@@ -157,7 +162,8 @@ export function createWorker(workerId: number) {
       );
 
       // Schedule next run regardless
-      await scheduleNextRun(patientId, studyId, study.frequency_seconds, workerId);
+      const delayMs = patientStudy.frequency_seconds * 1000;
+      await addRefreshJob(patientId, studyId, 1, delayMs);
     },
     {
       connection,
@@ -175,8 +181,4 @@ async function scheduleNextRun(
 ) {
   const delayMs = frequencySeconds * 1000;
   await addRefreshJob(patientId, studyId, 1, delayMs);
-  console.log(
-    `[Worker ${workerId}] Scheduled next run for ${patientId}/${studyId} ` +
-    `in ~${(delayMs / 1000).toFixed(1)}s (plus 5–15% jitter)`
-  );
 }

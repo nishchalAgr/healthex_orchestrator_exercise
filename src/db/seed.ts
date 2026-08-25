@@ -1,10 +1,8 @@
 import { createPatientStudy } from './db.ts';
 
 function getSeedCount(): number {
-  const env = parseInt(process.env.SEED_COUNT || '', 10);
-  if (!isNaN(env) && env > 0) return env;
-
   const arg = parseInt(process.argv[2], 10);
+  console.log(`Seed count: ${arg}`);
   if (!isNaN(arg) && arg > 0) return arg;
 
   return 10;
@@ -57,12 +55,11 @@ async function seedDatabase(count: number) {
   console.log(`   Frequencies: 20–120s. Data sources: random subsets of epic/cerner/athena.`);
 }
 
-if (require.main === module) {
-  const count = getSeedCount();
-  seedDatabase(count)
-    .then(() => process.exit(0))
-    .catch((err) => {
-      console.error('Seeding failed:', err);
-      process.exit(1);
-    });
-}
+
+const count = getSeedCount();
+seedDatabase(count)
+  .then(() => process.exit(0))
+  .catch((err) => {
+    console.error('Seeding failed:', err);
+    process.exit(1);
+  });

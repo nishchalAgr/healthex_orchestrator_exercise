@@ -7,7 +7,8 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "seed": "node src/db/seed.ts",
+    "cleanup": "node src/db/cleanup.ts"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",

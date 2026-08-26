@@ -8,7 +8,6 @@ A robust, scalable job orchestrator that schedules, prioritizes, and executes pa
 ### 1. Setup
 First, clone the repository and then setup the env through docker
 ```
-cd healthex_imp
 docker compose up -d
 docker compose exec app sh
 ```

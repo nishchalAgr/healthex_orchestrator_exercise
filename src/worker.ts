@@ -48,7 +48,7 @@ function callEhrMockOnce(ehr: string, patientId: string): Promise<{ ehr: string;
     const startTime = Date.now();
 
     const options = {
-      hostname: 'localhost',
+      hostname: '127.0.0.1',
       port: 3000,
       path: `/mock/${ehr}/${patientId}`,
       method: 'GET',
@@ -140,17 +140,6 @@ export function createWorker(workerId: number) {
         console.log(`[Worker ${workerId}] EHR to call: ${ehr}`);
         // Check freshness
         const patientSource = getPatientSource(patientId, ehr);
-
-        const status = patientSource.status;
-        if (status == 'IN_PROGRESS') {
-          console.log(`   ⏭️ Skipping ${ehr} – refresh in progress`);
-          // Treat as success (no fetch needed)
-          results.push({
-            status: 'fulfilled',
-            value: { ehr, time: 0 },
-          });
-          continue;
-        }
 
         //skip if data source was refreshed for patient in the last 60 seconds
         //this check is not performed if priority == 0, which means that manual refresh was requested

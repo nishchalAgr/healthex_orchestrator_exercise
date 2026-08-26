@@ -68,17 +68,19 @@ app.get('/mock/:ehr/:patientId', async (req, res) => {
   });
 });
 
-app.post('/patients/:id/$updateData', async (req, res) => {
+app.post('/patients/:id/updateData', async (req, res) => {
   const { id } = req.params;
   let { studies } = req.body;
 
+  if (studies === undefined || studies === null || !Array.isArray(studies)) {
+    return res.status(400).json({ error: 'studies field is required in string array format' });
+  }
+
   let patients: PatientStudy[] = [];
-  if (!studies) {
+  if (studies.length == 0) {
     patients = await getAllPatientStudies(id);
-  } else if (Array.isArray(studies)) {
-    patients = await getPatientStudies(id, studies);
   } else {
-    return res.status(400).json({ error: 'studies must be an array or ' });
+    patients = await getPatientStudies(id, studies);
   }
 
   if (patients.length === 0) {
@@ -87,8 +89,10 @@ app.post('/patients/:id/$updateData', async (req, res) => {
 
   const targetStudyIds = patients.map(p => p.study_id);
   const jobs = [];
+  let delay = 0;
   for (const studyId of targetStudyIds) {
-    const job = await addRefreshJob(id, studyId, 0);
+    delay += 100;
+    const job = await addRefreshJob(id, studyId, 0, delay);
     jobs.push({ studyId: studyId, jobId: job.id });
   }
 

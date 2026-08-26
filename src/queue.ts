@@ -3,9 +3,11 @@ import { Redis } from 'ioredis';
 
 export const queueName = 'refresh-queue';
 
+const REDIS_HOST = process.env.REDIS_HOST || 'localhost';
+
 // Create Redis connection using IORedis
 export const connection = new Redis({
-  host: 'localhost',
+  host: REDIS_HOST,
   port: 6379,
   maxRetriesPerRequest: null,
 });

@@ -57,8 +57,15 @@ export function getAllPatientStudies(patientId: string): PatientStudy[] {
 }
 
 export function getPatientStudies(patientId: string, studyIds: string[]): PatientStudy[] {
-  const stmt = db.prepare('SELECT * FROM patient_studies WHERE patient_id = ? AND study_id IN studyIds');
-  return stmt.all(patientId, studyIds) as PatientStudy[];
+  if (!studyIds || studyIds.length === 0) {
+    return [];
+  }
+
+  const placeholders = studyIds.map(() => '?').join(', ');
+  const sql = `SELECT * FROM patient_studies WHERE patient_id = ? AND study_id IN (${placeholders})`;
+  
+  const stmt = db.prepare(sql);
+  return stmt.all(patientId, ...studyIds) as PatientStudy[];
 }
 
 export function getPatientStudy(patientId: string, studyId: string): PatientStudy | undefined {
@@ -129,7 +136,7 @@ export function tryStartPatientSourceRefresh(patientId: string, dataSource: stri
   const stmt = db.prepare(`
     UPDATE patient_source_refresh
     SET status = 'IN_PROGRESS'
-    WHERE patient_id = ? AND data_source = ? AND status IN ('PENDING', 'FAILED')
+    WHERE patient_id = ? AND data_source = ? AND status NOT IN ('IN_PROGRESS')
   `);
   const result = stmt.run(patientId, dataSource);
   return result.changes > 0;

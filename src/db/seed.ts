@@ -65,8 +65,8 @@ async function seedDatabase(count: number) {
 
 async function addMultipleStudiesWithSamePatientAndDataSource() {
   let patientId = "patient_1";
-  createPatientStudy(patientId, "study_1", 6, ['epic', 'cerner']);
-  createPatientStudy(patientId, "study_2", 7, ['athena', 'cerner']);
+  createPatientStudy(patientId, "study_1", 60, ['epic', 'cerner']);
+  createPatientStudy(patientId, "study_2", 70, ['athena', 'cerner']);
   console.log(`✅ Seeded 2 patient–study pairs for MultipleStudiesWithSamePatientAndDataSource test case.`);
 }
 

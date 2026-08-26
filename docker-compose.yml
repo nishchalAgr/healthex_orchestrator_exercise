@@ -1,0 +1,23 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: healthex-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  app:
+    build: .
+    container_name: healthex-app
+    depends_on:
+      - redis
+    ports:
+      - "3000:3000"
+    environment:
+      - REDIS_HOST=redis
+      - REDISCLI_HOST=redis 
+      - NODE_ENV=development
+      - DB_PATH=/app/data.db
+    # Keep container running without starting the app
+    command: tail -f /dev/null
+    restart: unless-stopped

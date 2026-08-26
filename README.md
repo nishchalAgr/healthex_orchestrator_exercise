@@ -135,6 +135,9 @@ Tracks per‑patient, per‑source refresh state to prevent duplicate fetches.
 | `status` | TEXT | Lock state: `PENDING`, `IN_PROGRESS`, `COMPLETED`, `FAILED` |
 
 ## Downsides and Potential Improvements
+### Tradeoffs
+1. I used BullMQ + REDIS, as it was the simplest option I could find for seamless worker and job integration. One downside of this is that all the workers and jobs run in the same process as the server, which is not very scalable. 
+2. Looking back, I should have made the project more "user-friendly" by adding more config options (like number of workers to initialize). Adding data to the DB could also be more streamlined. 
 ### Rate limits
 Currently, the orchestrator does not explicitly take EHR rate limits into account. To solve this issue, we could modify the current design in such a way:
 1. Using redis, create a token queue per EHR endpoint

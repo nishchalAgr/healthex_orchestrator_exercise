@@ -40,7 +40,6 @@ You can also add specific test cases in the seed script. Check `seed.ts` for an 
 # Add data for test case 1
 npm run seed t 1
 ```
-
 ## Design Summary - Key Design Decisions
 
 | Feature | Implementation |
@@ -53,6 +52,7 @@ npm run seed t 1
 | **Mock EHRs** | Simulated latencies and failure rates for testing. |
 
 ## Design Summary - Data flow
+<img width="1669" height="1156" alt="image" src="https://github.com/user-attachments/assets/d6a36dec-084f-4230-af17-8bb103c5876c" />
 
 
 ### 1. Job Creation
